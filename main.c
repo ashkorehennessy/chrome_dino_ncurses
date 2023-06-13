@@ -3,31 +3,23 @@
 #include <unistd.h>//usleep函数
 #include <time.h>//配合rand函数
 #include <stdlib.h>//rand函数
-#include "skin.c" 
+#include "main.h"
+#include "pattern.h"
+
 #define KEY_SPACE 32
 #define DAY     1
 #define NIGHT   2
-struct box {//实体
-        int typeID;
-        float X;
-        int Y;
-        int length;
-        int height;
-};
-struct background {//背景
-        float X;
-        int Y;
-        float speed;
-};
+
+
 int gameState=0;//游戏状态      
-float gameSpeed=1.2;//游戏速度
+double gameSpeed=1.2;//游戏速度
 int frame=0;//当前运行帧
 int score=0;//分数
 int windowMaxX=0;//窗口长
 int ground=0;//地面坐标
 wchar_t key;//检测的按键
 
-int gameStartAnimation(int *jumpArray, const struct background *dirt, const struct background *cloud){
+int gameStartAnimation(int *jumpArray, const Background *dirt, const Background *cloud){
         mvhline(ground-1, 20, '_', 16);//地板
         dinosaurStand(30,ground);
         mvprintw(ground/2,windowMaxX/2-20,"Press space to play");
@@ -68,7 +60,7 @@ int gameStartAnimation(int *jumpArray, const struct background *dirt, const stru
         }
         return 0;
 }
-void showDinosaur(const struct box *dino){
+void show_dino(const Dino *dino){
         //恐龙姿态显示
         int index = (frame%20 < 10 ? 1 : 2) + (dino->height == 5 ? 2 : 0) + (dino->Y < ground ? 4 : 0);
         switch (index)
@@ -80,65 +72,48 @@ void showDinosaur(const struct box *dino){
         default:dinosaurStand(dino->X, dino->Y);break;//滞空
         }
 }
-void showDirt(struct background *dirt){
-        for(int i=0;i<4;i++)
-        {
-                dirt[i].X-=gameSpeed;//碎石的速度
-                if(dirt[i].X<=0)//碎石碰壁时刷新
-                {
-                        if(i==0) {
-                                dirt[i].X=dirt[3].X+rand()%50+50;
-                        } else {
-                                dirt[i].X=dirt[i-1].X+rand()%50+50;
-                        }
+void update_background(Background *bg){
+        bg->X -= bg->speed;
+        if (bg->X < 0){
+                if (bg->RandRange_X != 0) {
+                        bg->X = windowMaxX + rand() % bg->RandRange_X + bg->RandOffset_X;
+                } else {
+                        bg->X = windowMaxX;
                 }
-                dirt1(dirt[i].X,ground);
-        }
-}
-void showCloud(struct background *cloud){
-        for(int i=0;i<4;i++)
-        {
-                cloud[i].X-=0.5;//云的速度
-                if(cloud[i].X<=0)//云碰壁时刷新
-                {
-                        if(i==0) {
-                                cloud[i].X=cloud[3].X+rand()%60+30;
-                        } else {
-                                cloud[i].X=cloud[i-1].X+rand()%60+30;
-                        }
-                        cloud[i].Y=ground-12-rand()%12;
+                if (bg->RandRange_Y != 0) {
+                        bg->Y = ground - rand() % bg->RandRange_Y - bg->RandOffset_Y;
                 }
-                cloud1(cloud[i].X, cloud[i].Y);//显示云
         }
 }
-void showStar(struct background *star){
-        for(int i=0;i<4;i++)
-        {
-                star[i].X-=0.25;//星星的速度
-                if(star[i].X<=0)//星星碰壁时刷新
-                {
-                        if(i==0) {
-                                star[i].X=star[3].X+rand()%70+30;
-                        } else {
-                                star[i].X=star[i-1].X+rand()%70+30;
+void show_background(const Background *bg){
+        switch (bg->ID) {
+                case 0:
+                        dirt1(bg->X,bg->Y);
+                        break;
+                case 1:
+                        cloud1(bg->X,bg->Y);
+                        break;
+                case 2:
+                        star1(bg->X,bg->Y);
+                        break;
+                default:
+                        switch (bg->ID % 3) {
+                                case 0:
+                                        moon1(bg->X,bg->Y);
+                                        break;
+                                case 1:
+                                        moon2(bg->X,bg->Y);
+                                        break;
+                                case 2:
+                                        moon3(bg->X,bg->Y);
+                                        break;
                         }
-                        star[i].Y=ground-14-rand()%8;
-                }
-                star1(star[i].X,star[i].Y);//显示星星
         }
+
+    
 }
-void showMoon(struct background *moon,const int moonType){
-        moon->X -= 0.1;
-        switch(moonType){
-        case 1:moon1(moon->X,moon->Y);break;//新月
-        case 2:moon2(moon->X,moon->Y);break;//半月
-        case 3:moon3(moon->X,moon->Y);break;//满月
-        case 4:moon2(moon->X,moon->Y);break;//半月
-        default:break;
-        }
-}
-void showBox(const struct box *obstacle) {
-        switch (obstacle->typeID)
+void showBox(const Obstacle *obstacle) {
+        switch (obstacle->ID)
         {
         case 1:cactus1(obstacle->X,obstacle->Y);break;
         case 2:cactus2(obstacle->X,obstacle->Y);break;
@@ -158,10 +133,10 @@ void showBox(const struct box *obstacle) {
         default:break;
         }
 }
-void refreshBox(struct box *obstacle,const float anotherObstacleX) {
-        obstacle->typeID=rand()%9+1;//随机障碍类型
+void refreshBox(Obstacle *obstacle,const float anotherObstacleX) {
+        obstacle->ID=rand()%9+1;//随机障碍类型
         obstacle->X=anotherObstacleX+rand()%150+75*gameSpeed;//更新X坐标为另一个障碍X坐标+随机数
-        if(obstacle->typeID > 6)//障碍类型为鸟时随机高度
+        if(obstacle->ID > 6)//障碍类型为鸟时随机高度
         {
                 obstacle->Y=ground-rand()%12;
         }
@@ -169,7 +144,7 @@ void refreshBox(struct box *obstacle,const float anotherObstacleX) {
         {
                 obstacle->Y=ground;
         }
-        switch(obstacle->typeID)
+        switch(obstacle->ID)
         {
         case 1: obstacle->length=11;  obstacle->height=6; break;//仙人掌1
         case 2: obstacle->length=16;  obstacle->height=6; break;//仙人掌2
@@ -183,14 +158,11 @@ void refreshBox(struct box *obstacle,const float anotherObstacleX) {
         default:break;
         }
 }
-int hitBox(const struct box *dino, const struct box *obstacle) {
+int hitBox(const Dino *dino, const Obstacle *obstacle) {
         //碰头，碰脚，碰手检测
-        if(((dino->X > obstacle->X)  &&  (dino->X < obstacle->X + obstacle->length)) && ((dino->Y > obstacle->Y - obstacle->height)  &&  (dino->Y - dino->height < obstacle->Y)))
-        {
+        if(((dino->X > obstacle->X)  &&  (dino->X < obstacle->X + obstacle->length)) && ((dino->Y > obstacle->Y - obstacle->height)  &&  (dino->Y - dino->height < obstacle->Y))) {
                 return 1;
-        }
-        else
-        {
+        } else {
                 return 0;
         }
 }
@@ -198,7 +170,6 @@ int getHistoryScore() {
         FILE *fp=fopen("record.dat","rb");
                 if(fp==NULL) // 打开失败，创建新文件
                 {
-        
                         fp=fopen("record.dat","wb");
                         if(fp==NULL)// 文件创建失败 
                         {
@@ -231,18 +202,43 @@ int main()
         ground=getmaxy(stdscr)-4;//地板Y坐标
         int downKeyDelay=0;//蹲下延时帧
         int jumpArray[]={0,1,3,4,5,6,7,8,9,10,11,12,13,13,14,15,15,16,16,17,17,17,18,18,18,18,18,18,18,18,18,18,17,17,17,16,16,16,15,14,14,13,12,11,11,10,9,8,7,6,5,4,3,2,0};//跳跃高度
-        int jumpFrame=0;//跳跃过程帧
-        int moonType=0;//月亮盈亏
-        int checkObstacle=1;
-        struct background dirt[4]={0};
-        struct background cloud[4]={0};
-        struct background star[4]={0};
-        struct background moon={
-                .X=windowMaxX,
-                .Y=ground-18
+        int jumpFrame;//跳跃过程帧
+        int checkObstacle;
+
+        //初始化背景类
+        Background dirt[4] = {0};
+        for(int i=0;i<4;i++){
+                dirt[i].ID = 0;
+                dirt[i].X = windowMaxX / 4 * i;
+                dirt[i].Y = ground;
+                dirt[i].speed = gameSpeed;
+                dirt[i].RandRange_X = 50;
+        }
+        Background cloud[4] = {0};
+        for(int i=0;i<4;i++){
+                cloud[i].ID = 1;
+                cloud[i].X = windowMaxX / 4 * i;
+                cloud[i].Y = ground - rand()%12 - 12;
+                cloud[i].speed = 0.5;
+                cloud[i].RandRange_X = 60;
+                cloud[i].RandOffset_X = 30;
+                cloud[i].RandRange_Y = 12;
+                cloud[i].RandOffset_Y = 12;
+        }
+        Background star[4] = {0};
+        for(int i=0;i<4;i++){
+                star[i].ID = 2;
+                star[i].X = windowMaxX / 4 * i;
+                star[i].Y = ground - rand()%14 - 8;
+                star[i].speed = 0.25;
+                star[i].RandRange_X = 70;
+                star[i].RandOffset_X = 30;
+                star[i].RandRange_Y = 14;
+                star[i].RandOffset_Y = 8;
+        }
+        Background moon[1]={
+                {.ID=3, .X=windowMaxX, .Y=ground-18, .speed=0.1}
         };
-        showDirt(dirt);//初始化碎石坐标
-        showCloud(cloud);//初始化云坐标
         clear();
         //开场动画
         if(gameStartAnimation(jumpArray,dirt,cloud)==1)
@@ -263,28 +259,28 @@ int main()
                         printf("ERROR: Can not create record file\nPlease check Permission or disk");
                         return -1;  
                 }
-                struct box dino={
+                Dino dino={
                         .X=30,
                         .Y=ground,
                         .length=10,
                         .height=9
                 };
-                struct box obstacle1={
-                        .typeID=1,
+                Obstacle obstacle1={
+                        .ID=1,
                         .X=400,
                         .Y=ground,
                         .length=13,
                         .height=6
                 };
-                struct box obstacle2={
-                        .typeID=2,
+                Obstacle obstacle2={
+                        .ID=2,
                         .X=600,
                         .Y=ground,
                         .length=18,
                         .height=6
                 };
-                struct box *detectObstacle=&obstacle1;//正在检测的障碍物
-                struct box *unDetectObstacle=&obstacle2;//未检测的障碍物
+                Obstacle *detectObstacle=&obstacle1;//正在检测的障碍物
+                Obstacle *unDetectObstacle=&obstacle2;//未检测的障碍物
                 //游戏主体
                 checkObstacle=1;
                 gameState=1;
@@ -317,18 +313,23 @@ int main()
                                 bkgd(COLOR_PAIR(DAY));//背景切换白天
                         } else {
                                 if(score%1000==500){//500、1500、2500分时更新月亮
-                                        moonType++;
-                                        if(moonType==5){
-                                                moonType=1;
-                                        }
-                                        moon.X=windowMaxX;//月亮拉到右侧
+                                        moon->ID++;
+                                        moon->X=windowMaxX;//月亮拉到右侧
                                 }
                                 bkgd(COLOR_PAIR(NIGHT));//背景切换黑夜
-                                showStar(star);//显示星星
-                                showMoon(&moon,moonType);//显示月亮
+                                for(int i=0;i<4;i++){
+                                        update_background(&star[i]);//更新星星坐标
+                                        show_background(&star[i]);//显示星星
+                                }
+                                update_background(moon);//更新月亮坐标
+                                show_background(moon);//显示月亮
                         }
-                        showDirt(dirt);//显示碎石
-                        showCloud(cloud);//显示云
+                        for(int i=0;i<4;i++){
+                                update_background(&dirt[i]);//更新碎石坐标
+                                update_background(&cloud[i]);//更新云坐标
+                                show_background(&dirt[i]);
+                                show_background(&cloud[i]);
+                        }
                         showBox(&obstacle1);//显示障碍1
                         showBox(&obstacle2);//显示障碍2
                         //碰撞检测并显示相应恐龙
@@ -336,7 +337,7 @@ int main()
                                 dinosaurFail(dino.X, dino.Y);
                                 gameState = 0;
                         } else {
-                                showDinosaur(&dino);
+                                show_dino(&dino);
                         }
                         //mvprintw(1,windowMaxX-60,"INPUT KEY:%d",key);//输出当前按键
                         //mvprintw(1,windowMaxX-45,"FRAME:%d",frame);//输出当前帧
@@ -361,10 +362,13 @@ int main()
                         frame++;
                         score=frame/5;
                         //游戏速度
-                        if(score<160)           gameSpeed=1.2;
-                        else if(score<280)      gameSpeed=1.5;
-                        else if (score<400)     gameSpeed=1.8;
-                        else                    gameSpeed=2.4;
+                        if(score<160)           gameSpeed = 1.2;
+                        else if(score<280)      gameSpeed = 1.5;
+                        else if (score<400)     gameSpeed = 1.8;
+                        else                    gameSpeed = 2.4;
+                        for(int i=0;i<4;i++){
+                                dirt[i].speed = gameSpeed;
+                        }
                         refresh();
                         usleep(10000);
                 }
@@ -391,5 +395,4 @@ int main()
                         }
                 }   
         }
-        return 0;
 }

@@ -1,3 +1,5 @@
+#include <ncurses.h>
+
 void cactus1(int x, int y) {
            mvprintw(y-6,x+3,"_");
       	  mvprintw(y-5,x+2,"( )_");
